@@ -923,9 +923,6 @@ class RenderOverflowView extends RenderBox
 
         if (lastMetrics.hasNoChild) {
           // but there are no child.
-          // We cannot paint any child because there is not enough space.
-          // Mark the visual is overflow.
-          _hasVisualOverflow = true;
           break;
         }
 
@@ -967,10 +964,6 @@ class RenderOverflowView extends RenderBox
 
       mainAxisExtent = math.max(mainAxisExtent, lastMetrics.mainAxisExtent);
       crossAxisExtent = math.max(crossAxisExtent, lastMetrics.crossAxisExtent);
-    }
-
-    if (crossAxisExtent > crossAxisLimit) {
-      _hasVisualOverflow = true;
     }
 
     _positionChildrenInWrapLayout(
