@@ -973,7 +973,7 @@ class RenderOverflowView extends RenderBox
       _hasVisualOverflow = true;
     }
 
-    _performWrapLayout(
+    _positionChildrenInWrapLayout(
       flipMainAxis: flipMainAxis,
       flipCrossAxis: flipCrossAxis,
       mainAxisExtent: mainAxisExtent,
@@ -982,7 +982,7 @@ class RenderOverflowView extends RenderBox
     );
   }
 
-  void _performWrapLayout({
+  void _positionChildrenInWrapLayout({
     required bool flipMainAxis,
     required bool flipCrossAxis,
     required double mainAxisExtent,
