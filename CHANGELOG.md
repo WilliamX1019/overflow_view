@@ -1,6 +1,19 @@
-## 0.4.0
+## 0.6.0
 ### Enhancement
 * [Wrapped items](https://github.com/letsar/overflow_view/issues/2)
+
+## 0.5.0
+### Changed
+* Update Flutter constraints.
+* Update version of value_layout_builder.
+  
+### Fixed
+* Flutter 3.32 breaking changes issue.
+
+## 0.4.0
+### Changed
+* Update Flutter and Dart SDK constraints.
+* Update dependencies.
 
 ## 0.3.1
 ### Changed
