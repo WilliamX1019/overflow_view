@@ -36,14 +36,14 @@ class Avatar {
 
 const List<Avatar> avatars = <Avatar>[
   Avatar('AD', Colors.green),
-  Avatar('JG', Colors.pink),
-  Avatar('DA', Colors.blue),
+  Avatar('JGaaaa', Colors.pink),
+  Avatar('DAss', Colors.blue),
   Avatar('JA', Colors.black),
-  Avatar('CB', Colors.amber),
-  Avatar('RR', Colors.deepPurple),
-  Avatar('JD', Colors.pink),
-  Avatar('MB', Colors.amberAccent),
-  Avatar('AA', Colors.blueAccent),
+  Avatar('CBdddd', Colors.amber),
+  Avatar('RRf', Colors.deepPurple),
+  Avatar('JDgg', Colors.pink),
+  Avatar('MBs', Colors.amberAccent),
+  Avatar('AAaaaaaa', Colors.blueAccent),
   Avatar('BA', Colors.tealAccent),
   Avatar('CR', Colors.yellow),
 ];
@@ -51,7 +51,8 @@ const List<Avatar> avatars = <Avatar>[
 class _MyHomePageState extends State<MyHomePage> {
   int _counter = 1;
   double ratio = 1;
-
+  int maxRun = 3;
+  bool isOpen = false;
   void _incrementCounter() {
     setState(() {
       _counter = (_counter + 1).clamp(0, avatars.length - 1);
@@ -173,7 +174,7 @@ class _MyHomePageState extends State<MyHomePage> {
                           SizedBox(height: 16),
                           Container(
                             width: 190,
-                            height: 80,
+                            height: 300,
                             padding: EdgeInsets.all(8),
                             decoration: BoxDecoration(
                               color: Colors.blue.shade50,
@@ -184,14 +185,36 @@ class _MyHomePageState extends State<MyHomePage> {
                               borderRadius: BorderRadius.circular(18),
                             ),
                             child: OverflowView.wrap(
-                              maxRun: 3,
-                              builder: (context, remainingItemCount) => Chip(
-                                label: Text("+$remainingItemCount"),
-                                backgroundColor: Colors.red,
+                              runSpacing: 4,
+                              spacing: 4,
+                              maxRun: maxRun,
+                              builder: (context, remainingItemCount) =>
+                                  GestureDetector(
+                                child: Chip(
+                                  label: Text("+$remainingItemCount"),
+                                  backgroundColor: Colors.red,
+                                ),
+                                onTap: () {
+                                  setState(() {
+                                    maxRun = 100;
+                                    isOpen = true;
+                                    _counter += 1;
+                                  });
+                                },
                               ),
                               children: [
                                 for (int i = 0; i < _counter; i++)
-                                  Chip(
+                                  GestureDetector(
+                                    onTap: () {
+                                      if (isOpen && i == _counter - 1) {
+                                        setState(() {
+                                          maxRun = 3;
+                                          isOpen = false;
+                                          _counter -= 1;
+                                        });
+                                      }
+                                    },
+                                    child: Chip(
                                     label: Text(
                                       avatars[i].initials,
                                       style: TextStyle(
@@ -199,7 +222,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                       ),
                                     ),
                                     backgroundColor: avatars[i].color,
-                                  ),
+                                  ),),
                               ],
                             ),
                           ),
