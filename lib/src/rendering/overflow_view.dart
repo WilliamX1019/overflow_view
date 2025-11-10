@@ -5,7 +5,7 @@ import 'dart:math' as math;
 
 /// Parent data for use with [RenderOverflowView].
 class OverflowViewParentData extends ContainerBoxParentData<RenderBox> {
-  int _runIndex = 0;
+  int _runIndex = -1;
   bool? offstage;
 }
 
@@ -457,6 +457,7 @@ class RenderOverflowView extends RenderBox
       final OverflowViewParentData childParentData =
           child.parentData as OverflowViewParentData;
       childParentData.offstage = null;
+      childParentData._runIndex = -1; // <--- 增加这一行，重置 runIndex
     });
   }
 
@@ -683,298 +684,260 @@ class RenderOverflowView extends RenderBox
     size = constraints.constrain(idealSize);
   }
 
-  void performWrapLayout() {
-    final BoxConstraints childConstraints;
-    double mainAxisLimit = 0.0;
-    double crossAxisLimit = 0.0;
-    bool flipMainAxis = false;
-    bool flipCrossAxis = false;
+// rendering/overflow_view.dart -> class RenderOverflowView
 
-    switch (direction) {
-      case Axis.horizontal:
-        childConstraints = BoxConstraints(maxWidth: constraints.maxWidth);
-        mainAxisLimit = constraints.maxWidth;
-        crossAxisLimit = constraints.maxHeight;
-        if (textDirection == TextDirection.rtl) flipMainAxis = true;
-        if (verticalDirection == VerticalDirection.up) flipCrossAxis = true;
-        break;
-      case Axis.vertical:
-        childConstraints = BoxConstraints(maxHeight: constraints.maxHeight);
-        mainAxisLimit = constraints.maxHeight;
-        crossAxisLimit = constraints.maxWidth;
-        if (verticalDirection == VerticalDirection.up) flipMainAxis = true;
-        if (textDirection == TextDirection.rtl) flipCrossAxis = true;
-        break;
+void performWrapLayout() {
+  final BoxConstraints childConstraints;
+  double mainAxisLimit = 0.0;
+  double crossAxisLimit = 0.0;
+  bool flipMainAxis = false;
+  bool flipCrossAxis = false;
+
+  switch (direction) {
+    case Axis.horizontal:
+      childConstraints = BoxConstraints(maxWidth: constraints.maxWidth);
+      mainAxisLimit = constraints.maxWidth;
+      crossAxisLimit = constraints.maxHeight;
+      if (textDirection == TextDirection.rtl) flipMainAxis = true;
+      if (verticalDirection == VerticalDirection.up) flipCrossAxis = true;
+      break;
+    case Axis.vertical:
+      childConstraints = BoxConstraints(maxHeight: constraints.maxHeight);
+      mainAxisLimit = constraints.maxHeight;
+      crossAxisLimit = constraints.maxWidth;
+      if (verticalDirection == VerticalDirection.up) flipMainAxis = true;
+      if (textDirection == TextDirection.rtl) flipCrossAxis = true;
+      break;
+  }
+
+  List<RenderBox> renderBoxes = <RenderBox>[];
+  int unRenderedChildCount = this.childCount - 1;
+
+  final double spacing = this.spacing;
+  final double runSpacing = this.runSpacing;
+  final int? maxItemPerRun = this.maxItemPerRun;
+  final List<_RunMetrics> runMetrics = <_RunMetrics>[];
+  double mainAxisExtent = 0.0;
+  double crossAxisExtent = 0.0;
+  double currentRunMainAxisExtent = 0.0;
+  double currentRunCrossAxisExtent = 0.0;
+  int currentRunChildCount = 0;
+  int runIndex = 0;
+
+  bool showOverflowIndicator = false;
+  Offset currentChildOffset = Offset.zero;
+
+  RenderBox? child = firstChild;
+  child?.layout(childConstraints, parentUsesSize: true);
+
+  while (child != lastChild) { // the last child is the Overflow indicator, which will be laid out later
+    final OverflowViewParentData childParentData = child!.parentData as OverflowViewParentData;
+    childParentData.offset = currentChildOffset;
+    childParentData.offstage = false;
+    childParentData._runIndex = runIndex;
+
+    currentRunChildCount++;
+    unRenderedChildCount--;
+
+    renderBoxes.add(child);
+
+    final double childMainAxisExtent = _getMainAxisExtent(child.size);
+    final double childCrossAxisExtent = _getCrossAxisExtent(child.size);
+
+    if (currentRunChildCount > 1) {
+      currentRunMainAxisExtent += spacing;
+    }
+    currentRunMainAxisExtent += childMainAxisExtent;
+
+    currentRunCrossAxisExtent = math.max(
+      currentRunCrossAxisExtent,
+      childCrossAxisExtent,
+    );
+
+    double nextSiblingVerticalDistance = currentChildOffset.dy;
+
+    final RenderBox? nextSibling = childParentData.nextSibling;
+    double nextSiblingMainAxisExtent = 0.0;
+    if (nextSibling != null && nextSibling != lastChild) {
+      nextSibling.layout(childConstraints, parentUsesSize: true);
+      nextSiblingMainAxisExtent = _getMainAxisExtent(nextSibling.size);
     }
 
-    List<RenderBox> renderBoxes = <RenderBox>[];
-    int unRenderedChildCount = this.childCount - 1;
-
-    final double spacing = this.spacing;
-    final double runSpacing = this.runSpacing;
-    final int? maxItemPerRun = this.maxItemPerRun;
-    final List<_RunMetrics> runMetrics = <_RunMetrics>[];
-    double mainAxisExtent = 0.0;
-    double crossAxisExtent = 0.0;
-    double currentRunMainAxisExtent = 0.0;
-    double currentRunCrossAxisExtent = 0.0;
-    int currentRunChildCount = 0;
-    int runIndex = 0;
-
-    bool showOverflowIndicator = false;
-    Offset currentChildOffset = Offset.zero;
-
-    RenderBox? child = firstChild;
-    child?.layout(childConstraints, parentUsesSize: true);
-
-    while (child != lastChild) { // the last child is the Overflow indicator, which will be laid out later
-      final OverflowViewParentData childParentData = child!.parentData as OverflowViewParentData;
-      childParentData.offset = currentChildOffset;
-      // mark the child is not hidden, which means visible
-      childParentData.offstage = false;
-      childParentData._runIndex = runIndex;
-
-      currentRunChildCount++;
-      unRenderedChildCount--;
-
-      renderBoxes.add(child);
-
-      // Calculate the extent of the current run (row) in main axis and cross axis
-
-      final double childMainAxisExtent = _getMainAxisExtent(child.size);
-      final double childCrossAxisExtent = _getCrossAxisExtent(child.size);
-
-      if (currentRunChildCount > 1) {
-        currentRunMainAxisExtent += spacing;
-      }
-      currentRunMainAxisExtent += childMainAxisExtent;
-
-      currentRunCrossAxisExtent = math.max(
-        currentRunCrossAxisExtent,
-        childCrossAxisExtent,
-      );
-
-      // Prepare [Offset.dy] of the next child
-      double nextSiblingVerticalDistance = currentChildOffset.dy;
-
-      // Layout next child to get its extent in main axis,
-      // to prepare for the next run (row)
-
-      final RenderBox? nextSibling = childParentData.nextSibling;
-      double nextSiblingMainAxisExtent = 0.0;
-      if (nextSibling != null && nextSibling != lastChild) {
-        // The next child isn't the overflow indicator,
-        // which (as the last child) will be laid out later.
-        nextSibling.layout(childConstraints, parentUsesSize: true);
-        nextSiblingMainAxisExtent = _getMainAxisExtent(nextSibling.size);
-      }
-
-      if ((maxItemPerRun != null && currentRunChildCount + 1 > maxItemPerRun) ||
-          currentRunMainAxisExtent + nextSiblingMainAxisExtent > mainAxisLimit) {
-        // Save information of current run
-        runMetrics.add(_RunMetrics(
-          mainAxisExtent: currentRunMainAxisExtent,
-          crossAxisExtent: currentRunCrossAxisExtent,
-          childCount: currentRunChildCount,
-        ));
-
-        // Update the extent of this widget in main axis and cross axis
-        mainAxisExtent = math.max(mainAxisExtent, currentRunMainAxisExtent);
-
-        if (runMetrics.length > 1) {
-          crossAxisExtent += runSpacing;
-        }
-
-        crossAxisExtent += currentRunCrossAxisExtent;
-
-        // Update [Offset.dy] of the next child
-        nextSiblingVerticalDistance = crossAxisExtent + runSpacing;
-
-        // If we reach the maximum number of runs
-        // or the maximum extent in the cross axis,
-        // we need to stop laying out the remaining children
-        // and prepare to layout the Overflow indicator.
-
-        if (runMetrics.length == maxRun) {
-          // When the maxRun == 1 and maxItemPerRun == 1,
-          // we don't need to show the Overflow indicator
-          showOverflowIndicator = nextSibling != lastChild;
-          break;
-        }
-
-        if (nextSibling != null && nextSibling != lastChild) {
-          // The next child isn't the overflow indicator,
-          // which (as the last child) will be laid out later.
-          final double nextSiblingCrossAxisExtent = _getCrossAxisExtent(nextSibling.size);
-
-          if (crossAxisExtent + runSpacing + nextSiblingCrossAxisExtent > crossAxisLimit) {
-            // We have no room to paint any further child.
-            showOverflowIndicator = true;
-            break;
-          }
-        }
-
-        runIndex += 1;
-
-        // Reset current run information for the next run calculation
-
-        currentRunMainAxisExtent = 0.0;
-        currentRunCrossAxisExtent = 0.0;
-        currentRunChildCount = 0;
-      }
-
-      // Go to the next child
-
-      final double nextSiblingHorizontalDistance = spacing + currentRunMainAxisExtent;
-      final nextChildOffset = Offset(nextSiblingHorizontalDistance, nextSiblingVerticalDistance);
-      currentChildOffset = nextChildOffset;
-
-      child = nextSibling;
-    }
-
-    if (runMetrics.isEmpty && childCount > 1) { // why > 1, because one for the Overflow indicator
-      assert(!showOverflowIndicator);
-
-      // This is when the maxRun == 1
-
-      mainAxisExtent = currentRunMainAxisExtent;
-      crossAxisExtent = currentRunCrossAxisExtent;
-
+    if ((maxItemPerRun != null && currentRunChildCount + 1 > maxItemPerRun) ||
+        currentRunMainAxisExtent + nextSiblingMainAxisExtent > mainAxisLimit) {
       runMetrics.add(_RunMetrics(
         mainAxisExtent: currentRunMainAxisExtent,
         crossAxisExtent: currentRunCrossAxisExtent,
         childCount: currentRunChildCount,
       ));
+
+      mainAxisExtent = math.max(mainAxisExtent, currentRunMainAxisExtent);
+
+      if (runMetrics.length > 1) {
+        crossAxisExtent += runSpacing;
+      }
+
+      crossAxisExtent += currentRunCrossAxisExtent;
+
+      nextSiblingVerticalDistance = crossAxisExtent + runSpacing;
+
+      if (runMetrics.length == maxRun) {
+        showOverflowIndicator = nextSibling != lastChild;
+        break;
+      }
+
+      if (nextSibling != null && nextSibling != lastChild) {
+        final double nextSiblingCrossAxisExtent = _getCrossAxisExtent(nextSibling.size);
+
+        if (crossAxisExtent + runSpacing + nextSiblingCrossAxisExtent > crossAxisLimit) {
+          showOverflowIndicator = true;
+          break;
+        }
+      }
+
+      runIndex += 1;
+
+      currentRunMainAxisExtent = 0.0;
+      currentRunCrossAxisExtent = 0.0;
+      currentRunChildCount = 0;
     }
 
-    // Now, if showOverflowIndicator == true,
-    // - runIndex is the last index of all the runs
-    assert(!showOverflowIndicator || runIndex == runMetrics.length - 1);
-    // - currentChildOffset is the offset of the last visible child,
-    //   so when we need to show the Overflow indicator,
-    //   we can use this offset to replace that child
-    //   (the last visible child will be mark as invisible).
-    assert(() {
-      if (!showOverflowIndicator) return true;
+    final double nextSiblingHorizontalDistance = spacing + currentRunMainAxisExtent;
+    final nextChildOffset = Offset(nextSiblingHorizontalDistance, nextSiblingVerticalDistance);
+    currentChildOffset = nextChildOffset;
 
-      if (renderBoxes.isEmpty) return false;
+    child = nextSibling;
+  }
 
-      final lastVisibleChild = renderBoxes.last;
-      final OverflowViewParentData childParentData = lastVisibleChild.parentData as OverflowViewParentData;
+  // [FINAL FIX 1]: This block correctly calculates the total size by committing the last run's metrics.
+  if (currentRunChildCount > 0 && !showOverflowIndicator) {
+    mainAxisExtent = math.max(mainAxisExtent, currentRunMainAxisExtent);
+    if (runMetrics.isNotEmpty) {
+      crossAxisExtent += runSpacing;
+    }
+    crossAxisExtent += currentRunCrossAxisExtent;
 
-      return childParentData.offset == currentChildOffset;
-    }());
+    runMetrics.add(_RunMetrics(
+      mainAxisExtent: currentRunMainAxisExtent,
+      crossAxisExtent: currentRunCrossAxisExtent,
+      childCount: currentRunChildCount,
+    ));
+  }
 
-    if (showOverflowIndicator) {
-      // About to remove the last visible child
+  // [FINAL FIX 2]: Revert the assertion to its correct, original form.
+  assert(!showOverflowIndicator || runIndex == runMetrics.length - 1);
+
+  assert(() {
+    if (!showOverflowIndicator) return true;
+    if (renderBoxes.isEmpty) return false;
+    final lastVisibleChild = renderBoxes.last;
+    final OverflowViewParentData childParentData = lastVisibleChild.parentData as OverflowViewParentData;
+    return childParentData.offset == currentChildOffset;
+  }());
+
+  if (showOverflowIndicator) {
+    unRenderedChildCount++;
+
+    final RenderBox overflowIndicator = lastChild!;
+    final BoxValueConstraints<int> overflowIndicatorConstraints = BoxValueConstraints<int>(
+      value: unRenderedChildCount,
+      constraints: childConstraints,
+    );
+
+    overflowIndicator.layout(overflowIndicatorConstraints, parentUsesSize: true);
+
+    double overflowIndicatorMainAxisExtent = _getMainAxisExtent(overflowIndicator.size);
+    double overflowIndicatorCrossAxisExtent = _getCrossAxisExtent(overflowIndicator.size);
+
+    Offset overflowIndicatorOffset = currentChildOffset;
+    
+    _RunMetrics lastMetrics = runMetrics.isNotEmpty ? runMetrics.removeLast() : _RunMetrics(mainAxisExtent: 0, crossAxisExtent: 0, childCount: 0);
+    double lastRunMainAxisExtent = lastMetrics.mainAxisExtent;
+    int lastMetricsChildCount = lastMetrics.childCount;
+
+    while(lastMetricsChildCount > 0) {
+      final RenderBox removedChild = renderBoxes.removeLast();
+      final OverflowViewParentData removedChildParentData = removedChild.parentData as OverflowViewParentData;
+      removedChildParentData.offstage = true;
+      lastMetricsChildCount--;
+
+      final double removedChildMainAxisExtent = _getMainAxisExtent(removedChild.size);
+
+      lastRunMainAxisExtent -= removedChildMainAxisExtent;
+      if (lastMetricsChildCount > 0) {
+        lastRunMainAxisExtent -= spacing;
+      }
+
+      final double removedChildHorizontalDistance = removedChildParentData.offset.dx;
+
+      overflowIndicatorOffset = Offset(
+        removedChildHorizontalDistance,
+        removedChildParentData.offset.dy,
+      );
+
+      final double overflowIndicatorMainAxisLimit = mainAxisLimit - lastRunMainAxisExtent;
+
+      if (overflowIndicatorMainAxisLimit >= overflowIndicatorMainAxisExtent) {
+        break;
+      }
+
+      if (lastMetricsChildCount == 0) {
+        break;
+      }
+
       unRenderedChildCount++;
-      // to replace it with the Overflow indicator.
-
-      final RenderBox overflowIndicator = lastChild!; // this is the Overflow indicator.
+      
       final BoxValueConstraints<int> overflowIndicatorConstraints = BoxValueConstraints<int>(
         value: unRenderedChildCount,
         constraints: childConstraints,
       );
-
       overflowIndicator.layout(overflowIndicatorConstraints, parentUsesSize: true);
 
-      double overflowIndicatorMainAxisExtent = _getMainAxisExtent(overflowIndicator.size);
-      double overflowIndicatorCrossAxisExtent = _getCrossAxisExtent(overflowIndicator.size);
-
-      Offset overflowIndicatorOffset = currentChildOffset;
-
-      // Remove the last run metrics to make changes,
-      // because the metrics are immutable.
-      _RunMetrics lastMetrics = runMetrics.removeLast();
-      double lastRunMainAxisExtent = lastMetrics.mainAxisExtent;
-      int lastMetricsChildCount = lastMetrics.childCount;
-
-      while(lastMetricsChildCount > 0) {
-        // Remove the last visible child
-        final RenderBox removedChild = renderBoxes.removeLast();
-        final OverflowViewParentData removedChildParentData = removedChild.parentData as OverflowViewParentData;
-        removedChildParentData.offstage = true;
-        lastMetricsChildCount--;
-
-        // Re-calculate the extent in the main axis of the last run
-        final double removedChildMainAxisExtent = _getMainAxisExtent(removedChild.size);
-
-        lastRunMainAxisExtent -= removedChildMainAxisExtent;
-        if (lastMetricsChildCount > 0) {
-          lastRunMainAxisExtent -= spacing;
-        }
-
-        // Use the [Offset.dx] of removed child as the [Offset.dx] of the indicator
-        final double removedChildHorizontalDistance = removedChildParentData.offset.dx;
-
-        // Save offset of the indicator
-        overflowIndicatorOffset = Offset(
-          removedChildHorizontalDistance,
-          removedChildParentData.offset.dy,
-        );
-
-        final double overflowIndicatorMainAxisLimit = mainAxisExtent - lastRunMainAxisExtent;
-
-        if (overflowIndicatorMainAxisLimit >= overflowIndicatorMainAxisExtent) {
-          break;
-        }
-
-        // The indicator need more space to show...
-
-        if (lastMetrics.hasNoChild) {
-          // but there are no child.
-          break;
-        }
-
-        // Prepare to remove the next child
-        unRenderedChildCount++;
-
-        // Relayout the indicator with the new number of hidden children
-        final BoxValueConstraints<int> overflowIndicatorConstraints = BoxValueConstraints<int>(
-          value: unRenderedChildCount,
-          constraints: childConstraints,
-        );
-
-        overflowIndicator.layout(overflowIndicatorConstraints, parentUsesSize: true);
-
-        overflowIndicatorMainAxisExtent = _getMainAxisExtent(overflowIndicator.size);
-        overflowIndicatorCrossAxisExtent = _getCrossAxisExtent(overflowIndicator.size);
-      }
-
-      if (lastMetricsChildCount > 0) {
-        lastRunMainAxisExtent += spacing;
-      } 
-      lastRunMainAxisExtent += overflowIndicatorMainAxisExtent;
-
-      lastMetrics = lastMetrics.copyWith(
-        mainAxisExtent: lastRunMainAxisExtent,
-        crossAxisExtent: math.max(
-          lastMetrics.crossAxisExtent,
-          overflowIndicatorCrossAxisExtent,
-        ),
-        childCount: lastMetricsChildCount + 1, // 1 is for the indicator
-      );
-
-      runMetrics.add(lastMetrics);
-
-      final OverflowViewParentData overflowIndicatorParentData = overflowIndicator.parentData as OverflowViewParentData;
-      overflowIndicatorParentData.offset = overflowIndicatorOffset;
-      overflowIndicatorParentData.offstage = false;
-      overflowIndicatorParentData._runIndex = runMetrics.length - 1;
-
-      mainAxisExtent = math.max(mainAxisExtent, lastMetrics.mainAxisExtent);
-      crossAxisExtent = math.max(crossAxisExtent, lastMetrics.crossAxisExtent);
+      overflowIndicatorMainAxisExtent = _getMainAxisExtent(overflowIndicator.size);
+      overflowIndicatorCrossAxisExtent = _getCrossAxisExtent(overflowIndicator.size);
     }
 
-    _positionChildrenInWrapLayout(
-      flipMainAxis: flipMainAxis,
-      flipCrossAxis: flipCrossAxis,
-      mainAxisExtent: mainAxisExtent,
-      crossAxisExtent: crossAxisExtent,
-      runMetrics: runMetrics,
+    if (lastMetricsChildCount > 0) {
+      lastRunMainAxisExtent += spacing;
+    } 
+    lastRunMainAxisExtent += overflowIndicatorMainAxisExtent;
+
+    lastMetrics = lastMetrics.copyWith(
+      mainAxisExtent: lastRunMainAxisExtent,
+      crossAxisExtent: math.max(
+        lastMetrics.crossAxisExtent,
+        overflowIndicatorCrossAxisExtent,
+      ),
+      childCount: lastMetricsChildCount + 1,
     );
+
+    runMetrics.add(lastMetrics);
+
+    final OverflowViewParentData overflowIndicatorParentData = overflowIndicator.parentData as OverflowViewParentData;
+    overflowIndicatorParentData.offset = overflowIndicatorOffset;
+    overflowIndicatorParentData.offstage = false;
+    overflowIndicatorParentData._runIndex = runMetrics.length - 1;
+
+    mainAxisExtent = 0;
+    crossAxisExtent = 0;
+    for(int i = 0; i < runMetrics.length; i++) {
+        final metrics = runMetrics[i];
+        mainAxisExtent = math.max(mainAxisExtent, metrics.mainAxisExtent);
+        crossAxisExtent += metrics.crossAxisExtent;
+        if (i < runMetrics.length - 1) {
+            crossAxisExtent += runSpacing;
+        }
+    }
   }
 
+  _positionChildrenInWrapLayout(
+    flipMainAxis: flipMainAxis,
+    flipCrossAxis: flipCrossAxis,
+    mainAxisExtent: mainAxisExtent,
+    crossAxisExtent: crossAxisExtent,
+    runMetrics: runMetrics,
+  );
+}
   void _positionChildrenInWrapLayout({
     required bool flipMainAxis,
     required bool flipCrossAxis,
@@ -1077,7 +1040,7 @@ class RenderOverflowView extends RenderBox
       while (child != null) {
         final OverflowViewParentData childParentData = child.parentData! as OverflowViewParentData;
 
-        if (childParentData._runIndex != i && childParentData.offstage != null) {
+        if (childParentData._runIndex != i) {
           break;
         }
 
