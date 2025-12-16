@@ -69,15 +69,34 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
     _counter = avatars.length;
 
-    allItems = List.from(["With Invisi Drawstring", "With Invisi Drawstring4"]).map((e) {
+    allItems = List.from([
+      "With Invisi Drawstring",
+      "With Invisi Drawstring4",
+      'a',
+      'b',
+      'c',
+      'd',
+      'e',
+      'f',
+      'g',
+      'h',
+      'i',
+      'j',
+      'k',
+      'l',
+      'm',
+      'n',
+      'o',
+      'p',
+    ]).map((e) {
       final isSelected = false;
       final isRecommend = false;
       final isInStock = true;
 
       Color borderColor = const Color(0xFFDDAF88);
       Color backgroundColor = Colors.white;
-      borderColor =  const Color(0xFFDDAF88);
-      backgroundColor =  Colors.white;
+      borderColor = const Color(0xFFDDAF88);
+      backgroundColor = Colors.white;
 
       return LimitedTimeOptionItem(
         isSelected: isSelected,
@@ -85,7 +104,9 @@ class _MyHomePageState extends State<MyHomePage> {
         text: e,
         badgeImageUrl: '',
         labelText: "Fit 18-24 In",
-        onTap: () {},
+        onTap: () {
+          print('当前点击了-- $e');
+        },
       );
     }).toList();
   }
@@ -98,14 +119,16 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       body: SafeArea(
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12,vertical: 12),
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: double.infinity,
                 color: Colors.red,
-                padding: EdgeInsets.symmetric(vertical: 4,),
+                padding: EdgeInsets.symmetric(
+                  vertical: 4,
+                ),
                 child: OverflowView.wrap(
                   spacing: 8,
                   runSpacing: 12,
@@ -114,7 +137,19 @@ class _MyHomePageState extends State<MyHomePage> {
                   children: allItems,
                   builder: (context, remainingItemCount) {
                     print('remainingItemCount: $remainingItemCount');
-                    return SizedBox.shrink();
+                    return GestureDetector(
+                      child: Chip(
+                        label: Text("+$remainingItemCount"),
+                        backgroundColor: Colors.black,
+                      ),
+                      onTap: () {
+                        //点击展开更多
+                        setState(() {
+                          maxRun = 100;
+                          isOpen = true;
+                        });
+                      },
+                    );
                   },
                 ),
               )

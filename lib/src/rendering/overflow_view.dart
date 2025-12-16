@@ -869,54 +869,78 @@ class RenderOverflowView extends RenderBox
       double lastRunMainAxisExtent = lastMetrics.mainAxisExtent;
       int lastMetricsChildCount = lastMetrics.childCount;
 
-      while (lastMetricsChildCount > 0) {
-        final RenderBox removedChild = renderBoxes.removeLast();
-        final OverflowViewParentData removedChildParentData =
-            removedChild.parentData as OverflowViewParentData;
-        removedChildParentData.offstage = true;
-        lastMetricsChildCount--;
+      // First check: can the indicator fit alongside existing items without removing any?
+      double availableSpaceForIndicator = mainAxisLimit - lastRunMainAxisExtent;
+      if (lastMetricsChildCount > 0) {
+        availableSpaceForIndicator -= spacing; // Need spacing before indicator
+      }
 
-        final double removedChildMainAxisExtent =
-            _getMainAxisExtent(removedChild.size);
-
-        lastRunMainAxisExtent -= removedChildMainAxisExtent;
-        if (lastMetricsChildCount > 0) {
-          lastRunMainAxisExtent -= spacing;
+      if (availableSpaceForIndicator >= overflowIndicatorMainAxisExtent) {
+        // Indicator fits alongside existing items! Don't remove any.
+        if (renderBoxes.isNotEmpty) {
+          final lastVisibleChild = renderBoxes.last;
+          final lastVisibleChildParentData =
+              lastVisibleChild.parentData as OverflowViewParentData;
+          // Position indicator after the last visible child
+          overflowIndicatorOffset = Offset(
+            lastVisibleChildParentData.offset.dx +
+                _getMainAxisExtent(lastVisibleChild.size) +
+                spacing,
+            lastVisibleChildParentData.offset.dy,
+          );
         }
+      } else {
+        // Need to remove items to make room for indicator
+        while (lastMetricsChildCount > 0) {
+          final RenderBox removedChild = renderBoxes.removeLast();
+          final OverflowViewParentData removedChildParentData =
+              removedChild.parentData as OverflowViewParentData;
+          removedChildParentData.offstage = true;
+          lastMetricsChildCount--;
 
-        final double removedChildHorizontalDistance =
-            removedChildParentData.offset.dx;
+          final double removedChildMainAxisExtent =
+              _getMainAxisExtent(removedChild.size);
 
-        overflowIndicatorOffset = Offset(
-          removedChildHorizontalDistance,
-          removedChildParentData.offset.dy,
-        );
+          lastRunMainAxisExtent -= removedChildMainAxisExtent;
+          if (lastMetricsChildCount > 0) {
+            lastRunMainAxisExtent -= spacing;
+          }
 
-        final double overflowIndicatorMainAxisLimit =
-            mainAxisLimit - lastRunMainAxisExtent;
+          final double removedChildHorizontalDistance =
+              removedChildParentData.offset.dx;
 
-        if (overflowIndicatorMainAxisLimit >= overflowIndicatorMainAxisExtent) {
-          break;
+          overflowIndicatorOffset = Offset(
+            removedChildHorizontalDistance,
+            removedChildParentData.offset.dy,
+          );
+
+          final double overflowIndicatorMainAxisLimit =
+              mainAxisLimit - lastRunMainAxisExtent;
+
+          if (overflowIndicatorMainAxisLimit >=
+              overflowIndicatorMainAxisExtent) {
+            break;
+          }
+
+          if (lastMetricsChildCount == 0) {
+            break;
+          }
+
+          unRenderedChildCount++;
+
+          final BoxValueConstraints<int> overflowIndicatorConstraints =
+              BoxValueConstraints<int>(
+            value: unRenderedChildCount,
+            constraints: childConstraints,
+          );
+          overflowIndicator.layout(overflowIndicatorConstraints,
+              parentUsesSize: true);
+
+          overflowIndicatorMainAxisExtent =
+              _getMainAxisExtent(overflowIndicator.size);
+          overflowIndicatorCrossAxisExtent =
+              _getCrossAxisExtent(overflowIndicator.size);
         }
-
-        if (lastMetricsChildCount == 0) {
-          break;
-        }
-
-        unRenderedChildCount++;
-
-        final BoxValueConstraints<int> overflowIndicatorConstraints =
-            BoxValueConstraints<int>(
-          value: unRenderedChildCount,
-          constraints: childConstraints,
-        );
-        overflowIndicator.layout(overflowIndicatorConstraints,
-            parentUsesSize: true);
-
-        overflowIndicatorMainAxisExtent =
-            _getMainAxisExtent(overflowIndicator.size);
-        overflowIndicatorCrossAxisExtent =
-            _getCrossAxisExtent(overflowIndicator.size);
       }
 
       if (lastMetricsChildCount > 0) {
