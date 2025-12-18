@@ -946,6 +946,11 @@ class RenderOverflowView extends RenderBox
       overflowIndicatorParentData._runIndex = runMetrics.length - 1;
 
       // [CRITICAL FIX]: Mark any remaining children as offstage and ensure they are laid out
+      if (child != null) {
+        final OverflowViewParentData childParentData =
+            child!.parentData as OverflowViewParentData;
+        child = childParentData.nextSibling;
+      }
       while (child != null && child != lastChild) {
         final OverflowViewParentData childParentData =
             child!.parentData as OverflowViewParentData;
