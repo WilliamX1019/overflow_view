@@ -76,6 +76,8 @@ class RenderOverflowView extends RenderBox
     required VerticalDirection verticalDirection,
     required OverflowViewLayoutBehavior layoutBehavior,
     required bool hasOverflow,
+    bool hasUnconstrainedOverflow = false,
+    int? visibleFitRun,
   })  : assert(spacing > double.negativeInfinity && spacing < double.infinity),
         assert(maxRun == null || maxRun > 0),
         assert(maxItemPerRun == null || maxItemPerRun > 0),
@@ -90,7 +92,9 @@ class RenderOverflowView extends RenderBox
         _textDirection = textDirection,
         _verticalDirection = verticalDirection,
         _layoutBehavior = layoutBehavior,
-        _hasOverflow = hasOverflow {
+        _hasOverflow = hasOverflow,
+        _hasUnconstrainedOverflow = hasUnconstrainedOverflow,
+        _visibleFitRun = visibleFitRun {
     addAll(children);
   }
 
@@ -434,6 +438,24 @@ class RenderOverflowView extends RenderBox
     }
   }
 
+  bool get hasUnconstrainedOverflow => _hasUnconstrainedOverflow;
+  bool _hasUnconstrainedOverflow = false;
+  set hasUnconstrainedOverflow(bool value) {
+    if (_hasUnconstrainedOverflow != value) {
+      _hasUnconstrainedOverflow = value;
+      markNeedsLayout();
+    }
+  }
+
+  int? get visibleFitRun => _visibleFitRun;
+  int? _visibleFitRun;
+  set visibleFitRun(int? value) {
+    if (_visibleFitRun != value) {
+      _visibleFitRun = value;
+      markNeedsLayout();
+    }
+  }
+
   bool _hasVisualOverflow = false;
 
   @override
@@ -693,8 +715,35 @@ class RenderOverflowView extends RenderBox
         break;
     }
 
+    // Identify special children
+    RenderBox? overflowIndicator;
+    RenderBox? unconstrainedIndicator;
+    RenderBox? contentLastChild = lastChild;
+
+    if (hasUnconstrainedOverflow && contentLastChild != null) {
+      unconstrainedIndicator = contentLastChild;
+      final OverflowViewParentData pd =
+          contentLastChild.parentData as OverflowViewParentData;
+      contentLastChild = pd.previousSibling;
+    }
+
+    if (hasOverflow && contentLastChild != null) {
+      overflowIndicator = contentLastChild;
+      final OverflowViewParentData pd =
+          contentLastChild.parentData as OverflowViewParentData;
+      contentLastChild = pd.previousSibling;
+    }
+
+    // Hide indicators initially
+    if (overflowIndicator != null) {
+      (overflowIndicator.parentData as OverflowViewParentData).offstage = true;
+    }
+    if (unconstrainedIndicator != null) {
+      (unconstrainedIndicator.parentData as OverflowViewParentData).offstage =
+          true;
+    }
+
     List<RenderBox> renderBoxes = <RenderBox>[];
-    // int unRenderedChildCount = this.childCount - 1; // Unused for now
 
     final double spacing = this.spacing;
     final double runSpacing = this.runSpacing;
@@ -711,18 +760,29 @@ class RenderOverflowView extends RenderBox
     Offset currentChildOffset = Offset.zero;
 
     RenderBox? child = firstChild;
-    child?.layout(childConstraints, parentUsesSize: true);
+    // Skip indicators at the beginning if they happen to be the only children (edge case)
+    while (child != null &&
+        (child == overflowIndicator || child == unconstrainedIndicator)) {
+      child = (child.parentData as OverflowViewParentData).nextSibling;
+    }
 
-    while (child != lastChild) {
-      // the last child is the Overflow indicator, which will be laid out later
+    if (child != null) {
+      child.layout(childConstraints, parentUsesSize: true);
+    }
+
+    while (child != null) {
+      if (child == overflowIndicator || child == unconstrainedIndicator) {
+        child = (child.parentData as OverflowViewParentData).nextSibling;
+        continue;
+      }
+
       final OverflowViewParentData childParentData =
-          child!.parentData as OverflowViewParentData;
+          child.parentData as OverflowViewParentData;
       childParentData.offset = currentChildOffset;
       childParentData.offstage = false;
       childParentData._runIndex = runIndex;
 
       currentRunChildCount++;
-      // unRenderedChildCount--; // Unused
 
       childParentData.offstage = false;
       renderBoxes.add(child);
@@ -742,9 +802,17 @@ class RenderOverflowView extends RenderBox
 
       double nextSiblingVerticalDistance = currentChildOffset.dy;
 
-      final RenderBox? nextSibling = childParentData.nextSibling;
+      // Find next content sibling
+      RenderBox? nextSibling = childParentData.nextSibling;
+      while (nextSibling != null &&
+          (nextSibling == overflowIndicator ||
+              nextSibling == unconstrainedIndicator)) {
+        nextSibling =
+            (nextSibling.parentData as OverflowViewParentData).nextSibling;
+      }
+
       double nextSiblingMainAxisExtent = 0.0;
-      if (nextSibling != null && nextSibling != lastChild) {
+      if (nextSibling != null) {
         nextSibling.layout(childConstraints, parentUsesSize: true);
         nextSiblingMainAxisExtent = _getMainAxisExtent(nextSibling.size);
       }
@@ -768,20 +836,28 @@ class RenderOverflowView extends RenderBox
 
         nextSiblingVerticalDistance = crossAxisExtent + runSpacing;
 
-        if (runMetrics.length == maxRun) {
-          showOverflowIndicator = nextSibling != lastChild;
-          // print(...);
-          if (showOverflowIndicator) break;
+        // Overflow Logic (only if maxRun is set)
+        if (maxRun != null && runMetrics.length == maxRun) {
+          showOverflowIndicator = true;
+          break;
         }
 
-        if (nextSibling != null && nextSibling != lastChild) {
+        if (nextSibling != null) {
           final double nextSiblingCrossAxisExtent =
               _getCrossAxisExtent(nextSibling.size);
 
           if (crossAxisExtent + runSpacing + nextSiblingCrossAxisExtent >
               crossAxisLimit) {
-            showOverflowIndicator = true;
-            break;
+            if (maxRun == null) {
+              _hasVisualOverflow = true;
+            }
+            // For constrained wrap, we usually stop and show overflow.
+            // For unconstrained/flexible wrap, we might continue but clip?
+            // Logic in original was simple break.
+            if (maxRun != null) {
+              showOverflowIndicator = true;
+              break;
+            }
           }
         }
 
@@ -797,13 +873,16 @@ class RenderOverflowView extends RenderBox
       final nextChildOffset =
           Offset(nextSiblingHorizontalDistance, nextSiblingVerticalDistance);
       currentChildOffset = nextChildOffset;
-
       child = nextSibling;
     }
 
-    // [FINAL FIX 1]: This block correctly calculates the total size by committing the last run's metrics.
+    // Commit last run
     if (currentRunChildCount > 0 && !showOverflowIndicator) {
-      mainAxisExtent = math.max(mainAxisExtent, currentRunMainAxisExtent);
+      if (runMetrics.isNotEmpty) {
+        // Only if we had previous runs do we add spacing
+        // Actually logic above added spacing to crossAxisExtent when adding metric.
+      }
+      // Re-calculate cross extent accumulation for last run
       if (runMetrics.isNotEmpty) {
         crossAxisExtent += runSpacing;
       }
@@ -814,166 +893,183 @@ class RenderOverflowView extends RenderBox
         crossAxisExtent: currentRunCrossAxisExtent,
         childCount: currentRunChildCount,
       ));
+      mainAxisExtent = math.max(mainAxisExtent, currentRunMainAxisExtent);
     }
 
-    // [FINAL FIX 2]: Revert the assertion to its correct, original form.
-    assert(!showOverflowIndicator || runIndex == runMetrics.length - 1);
+    // --- Logic for Indicators ---
 
-    assert(() {
-      if (!showOverflowIndicator) return true;
-      if (renderBoxes.isEmpty) return false;
-      final lastVisibleChild = renderBoxes.last;
-      final OverflowViewParentData childParentData =
-          lastVisibleChild.parentData as OverflowViewParentData;
-      return childParentData.offset == currentChildOffset;
-    }());
+    if (maxRun != null) {
+      if (showOverflowIndicator && hasOverflow && overflowIndicator != null) {
+        final RenderBox indicator = overflowIndicator;
+        indicator.layout(childConstraints, parentUsesSize: true);
 
-    double overflowIndicatorMainAxisExtent = 0.0;
-    double overflowIndicatorCrossAxisExtent = 0.0;
+        double overflowIndicatorMainAxisExtent =
+            _getMainAxisExtent(indicator.size);
+        double overflowIndicatorCrossAxisExtent =
+            _getCrossAxisExtent(indicator.size);
 
-    if (hasOverflow && lastChild != null) {
-      final RenderBox overflowIndicator = lastChild!;
-      overflowIndicator.layout(childConstraints, parentUsesSize: true);
-      overflowIndicatorMainAxisExtent =
-          _getMainAxisExtent(overflowIndicator.size);
-      overflowIndicatorCrossAxisExtent =
-          _getCrossAxisExtent(overflowIndicator.size);
-    }
+        Offset overflowIndicatorOffset = currentChildOffset;
 
-    if (showOverflowIndicator && hasOverflow && lastChild != null) {
-      final RenderBox overflowIndicator = lastChild!;
-      // Size already computed above
+        _RunMetrics lastMetrics = runMetrics.isNotEmpty
+            ? runMetrics.removeLast()
+            : _RunMetrics(mainAxisExtent: 0, crossAxisExtent: 0, childCount: 0);
+        double lastRunMainAxisExtent = lastMetrics.mainAxisExtent;
+        int lastMetricsChildCount = lastMetrics.childCount;
 
-      Offset overflowIndicatorOffset = currentChildOffset;
+        double availableSpaceForIndicator =
+            mainAxisLimit - lastRunMainAxisExtent;
+        if (lastMetricsChildCount > 0) {
+          availableSpaceForIndicator -= spacing;
+        }
 
-      _RunMetrics lastMetrics = runMetrics.isNotEmpty
-          ? runMetrics.removeLast()
-          : _RunMetrics(mainAxisExtent: 0, crossAxisExtent: 0, childCount: 0);
-      double lastRunMainAxisExtent = lastMetrics.mainAxisExtent;
-      int lastMetricsChildCount = lastMetrics.childCount;
+        bool fits =
+            availableSpaceForIndicator >= overflowIndicatorMainAxisExtent;
 
-      // First check: can the indicator fit alongside existing items without removing any?
-      double availableSpaceForIndicator = mainAxisLimit - lastRunMainAxisExtent;
-      if (lastMetricsChildCount > 0) {
-        availableSpaceForIndicator -= spacing; // Need spacing before indicator
-      }
+        if (fits) {
+          if (renderBoxes.isNotEmpty) {
+            final RenderBox last = renderBoxes.last;
+            final OverflowViewParentData lastPd =
+                last.parentData as OverflowViewParentData;
 
-      if (availableSpaceForIndicator >= overflowIndicatorMainAxisExtent) {
-        // Indicator fits alongside existing items! Don't remove any.
-        if (renderBoxes.isNotEmpty) {
-          final lastVisibleChild = renderBoxes.last;
-          final lastVisibleChildParentData =
-              lastVisibleChild.parentData as OverflowViewParentData;
+            double lastEnd = _isHorizontal
+                ? lastPd.offset.dx + _getMainAxisExtent(last.size)
+                : lastPd.offset.dy + _getMainAxisExtent(last.size);
 
-          if (lastMetricsChildCount > 0) {
-            overflowIndicatorOffset = Offset(
-              lastVisibleChildParentData.offset.dx +
-                  _getMainAxisExtent(lastVisibleChild.size) +
-                  spacing,
-              lastVisibleChildParentData.offset.dy,
-            );
+            overflowIndicatorOffset = _isHorizontal
+                ? Offset(lastEnd + spacing, lastPd.offset.dy)
+                : Offset(lastPd.offset.dx, lastEnd + spacing);
           } else {
-            // Should effectively be start of new line if count was 0
-            overflowIndicatorOffset = Offset(
-                0, // Assuming new line starts at 0 dx
-                lastVisibleChildParentData.offset.dy);
-            // Wait, if lastMetricsChildCount is 0, renderBoxes might be empty or previous run
-            // Let's trust currentChildOffset strategy if possible, but we need to be careful.
-            // Logic below seems to rely on removing items.
+            overflowIndicatorOffset = currentChildOffset;
+          }
+        } else {
+          // Remove items
+          while (lastMetricsChildCount > 0) {
+            final RenderBox removed = renderBoxes.removeLast();
+            final OverflowViewParentData removedPd =
+                removed.parentData as OverflowViewParentData;
+            removedPd.offstage = true;
+            lastMetricsChildCount--;
+
+            double removedMain = _getMainAxisExtent(removed.size);
+            lastRunMainAxisExtent -= removedMain;
+            if (lastMetricsChildCount > 0) lastRunMainAxisExtent -= spacing;
+
+            overflowIndicatorOffset = removedPd.offset;
+
+            double spaceAvailable = mainAxisLimit - lastRunMainAxisExtent;
+            if (spaceAvailable >= overflowIndicatorMainAxisExtent) break;
           }
         }
-      } else {
-        // Need to remove items to make room for indicator
-        while (lastMetricsChildCount > 0) {
-          final RenderBox removedChild = renderBoxes.removeLast();
-          final OverflowViewParentData removedChildParentData =
-              removedChild.parentData as OverflowViewParentData;
-          removedChildParentData.offstage = true;
-          lastMetricsChildCount--;
 
-          final double removedChildMainAxisExtent =
-              _getMainAxisExtent(removedChild.size);
-
-          lastRunMainAxisExtent -= removedChildMainAxisExtent;
-          if (lastMetricsChildCount > 0) {
-            lastRunMainAxisExtent -= spacing;
-          }
-
-          final double removedChildHorizontalDistance =
-              removedChildParentData.offset.dx;
-
-          overflowIndicatorOffset = Offset(
-            removedChildHorizontalDistance,
-            removedChildParentData.offset.dy,
-          );
-
-          final double overflowIndicatorMainAxisLimit =
-              mainAxisLimit - lastRunMainAxisExtent;
-
-          if (overflowIndicatorMainAxisLimit >=
-              overflowIndicatorMainAxisExtent) {
-            break;
-          }
-
-          if (lastMetricsChildCount == 0) {
-            break;
-          }
-
-          // unRenderedChildCount++; // Unused
+        if (lastMetricsChildCount > 0) {
+          lastRunMainAxisExtent += spacing;
         }
-      }
+        lastRunMainAxisExtent += overflowIndicatorMainAxisExtent;
 
-      if (lastMetricsChildCount > 0) {
-        lastRunMainAxisExtent += spacing;
-      }
-      lastRunMainAxisExtent += overflowIndicatorMainAxisExtent;
+        lastMetrics = lastMetrics.copyWith(
+          mainAxisExtent: lastRunMainAxisExtent,
+          crossAxisExtent: math.max(
+            lastMetrics.crossAxisExtent,
+            overflowIndicatorCrossAxisExtent,
+          ),
+          childCount: lastMetricsChildCount + 1,
+        );
 
-      lastMetrics = lastMetrics.copyWith(
-        mainAxisExtent: lastRunMainAxisExtent,
-        crossAxisExtent: math.max(
-          lastMetrics.crossAxisExtent,
-          overflowIndicatorCrossAxisExtent,
-        ),
-        childCount: lastMetricsChildCount + 1,
-      );
+        runMetrics.add(lastMetrics);
 
-      runMetrics.add(lastMetrics);
+        final OverflowViewParentData overflowIndicatorParentData =
+            indicator.parentData as OverflowViewParentData;
+        overflowIndicatorParentData.offset = overflowIndicatorOffset;
+        overflowIndicatorParentData.offstage = false;
+        overflowIndicatorParentData._runIndex = runMetrics.length - 1;
 
-      final OverflowViewParentData overflowIndicatorParentData =
-          overflowIndicator.parentData as OverflowViewParentData;
-      overflowIndicatorParentData.offset = overflowIndicatorOffset;
-      overflowIndicatorParentData.offstage = false;
-      overflowIndicatorParentData._runIndex = runMetrics.length - 1;
-
-      // [CRITICAL FIX]: Mark any remaining children as offstage and ensure they are laid out
-      if (child != null) {
-        final OverflowViewParentData childParentData =
-            child!.parentData as OverflowViewParentData;
-        child = childParentData.nextSibling;
-      }
-      while (child != null && child != lastChild) {
-        final OverflowViewParentData childParentData =
-            child!.parentData as OverflowViewParentData;
-        childParentData.offstage = true;
-        child!.layout(childConstraints, parentUsesSize: true);
-        child = childParentData.nextSibling;
-      }
-
-      mainAxisExtent = 0;
-      crossAxisExtent = 0;
-      for (int i = 0; i < runMetrics.length; i++) {
-        final metrics = runMetrics[i];
-        mainAxisExtent = math.max(mainAxisExtent, metrics.mainAxisExtent);
-        crossAxisExtent += metrics.crossAxisExtent;
-        if (i < runMetrics.length - 1) {
-          crossAxisExtent += runSpacing;
+        // Ensure remaining children are offstage
+        RenderBox? c = child;
+        while (c != null &&
+            c != overflowIndicator &&
+            c != unconstrainedIndicator) {
+          if (c == overflowIndicator || c == unconstrainedIndicator) {
+            c = (c.parentData as OverflowViewParentData).nextSibling;
+            continue;
+          }
+          (c.parentData as OverflowViewParentData).offstage = true;
+          c = (c.parentData as OverflowViewParentData).nextSibling;
         }
+
+        mainAxisExtent = 0;
+        crossAxisExtent = 0;
+        for (int i = 0; i < runMetrics.length; i++) {
+          final metrics = runMetrics[i];
+          mainAxisExtent = math.max(mainAxisExtent, metrics.mainAxisExtent);
+          crossAxisExtent += metrics.crossAxisExtent;
+          if (i < runMetrics.length - 1) {
+            crossAxisExtent += runSpacing;
+          }
+        }
+      } else if (hasOverflow && overflowIndicator != null) {
+        (overflowIndicator.parentData as OverflowViewParentData).offstage =
+            true;
       }
-    } else if (hasOverflow && lastChild != null) {
-      // If we have an overflow widget but don't need to show it, mark it as offstage
-      final OverflowViewParentData overflowIndicatorParentData =
-          lastChild!.parentData as OverflowViewParentData;
-      overflowIndicatorParentData.offstage = true;
+    }
+
+    if (maxRun == null &&
+        visibleFitRun != null &&
+        unconstrainedIndicator != null) {
+      if (runMetrics.length > visibleFitRun!) {
+        RenderBox indicator = unconstrainedIndicator;
+        indicator.layout(childConstraints, parentUsesSize: true);
+
+        double indicatorMain = _getMainAxisExtent(indicator.size);
+        double indicatorCross = _getCrossAxisExtent(indicator.size);
+
+        final OverflowViewParentData indicatorPd =
+            indicator.parentData as OverflowViewParentData;
+        indicatorPd.offstage = false;
+
+        // We need to decide: Append to last run OR Start new run.
+        bool appendToLastRun = false;
+
+        if (runMetrics.isNotEmpty) {
+          _RunMetrics lastRun = runMetrics.last;
+          // Check if it fits on the last line
+          if (lastRun.mainAxisExtent + spacing + indicatorMain <=
+              mainAxisLimit) {
+            appendToLastRun = true;
+          }
+        }
+
+        if (appendToLastRun) {
+          _RunMetrics lastM = runMetrics.removeLast();
+
+          // We don't need to manually calculate Offset here because _positionChildrenInWrapLayout
+          // will calculate it based on _runIndex and order.
+          // We just need to ensure the indicator is logically in the run.
+
+          indicatorPd._runIndex = runMetrics
+              .length; // Index is length (since we removed one, length is N-1. New index is N-1.)
+          // Wait. removeLast makes length N-1. We want to add it back. Index is N-1.
+
+          runMetrics.add(lastM.copyWith(
+              mainAxisExtent: lastM.mainAxisExtent + spacing + indicatorMain,
+              crossAxisExtent: math.max(lastM.crossAxisExtent, indicatorCross),
+              childCount: lastM.childCount + 1));
+        } else {
+          // New run
+          indicatorPd._runIndex = runMetrics.length; // Index N.
+
+          runMetrics.add(_RunMetrics(
+              mainAxisExtent: indicatorMain,
+              crossAxisExtent: indicatorCross,
+              childCount: 1));
+
+          if (runMetrics.length > 1) crossAxisExtent += runSpacing;
+          crossAxisExtent += indicatorCross;
+        }
+
+        mainAxisExtent =
+            math.max(mainAxisExtent, runMetrics.last.mainAxisExtent);
+        renderBoxes.add(indicator);
+      }
     }
 
     _positionChildrenInWrapLayout(
@@ -993,6 +1089,10 @@ class RenderOverflowView extends RenderBox
     required List<_RunMetrics> runMetrics,
   }) {
     final int runCount = runMetrics.length;
+    if (runCount == 0) {
+      size = constraints.smallest;
+      return;
+    }
     assert(runCount > 0);
 
     double containerMainAxisExtent = 0.0;
@@ -1092,13 +1192,13 @@ class RenderOverflowView extends RenderBox
         final OverflowViewParentData childParentData =
             child.parentData! as OverflowViewParentData;
 
-        if (childParentData._runIndex != i) {
-          break;
-        }
-
         if (childParentData.offstage != false) {
           child = childParentData.nextSibling;
           continue;
+        }
+
+        if (childParentData._runIndex != i) {
+          break;
         }
 
         final double childMainAxisExtent = _getMainAxisExtent(child.size);

@@ -39,8 +39,8 @@ class _ExpandableOverflowDemoState extends State<ExpandableOverflowDemo> {
 
   // Generate a list of sample data (e.g., user skills or tags)
   final List<String> _tags = [
-    'Flutter AAAAAAAAAA',
-    'Dart BBBBBBBBBBBBBBBB',
+    'Flutter AAAA',
+    'Dart BBBBBBBBBBBBC',
     'Mobile Development',
     'iOS',
     'Android',
@@ -53,6 +53,7 @@ class _ExpandableOverflowDemoState extends State<ExpandableOverflowDemo> {
     'Python',
     'Machine Learning',
     'Firebase',
+    'Cloud Computing',
     'Cloud Computing',
   ];
 
@@ -149,31 +150,36 @@ class _ExpandableOverflowDemoState extends State<ExpandableOverflowDemo> {
           const SizedBox(height: 24),
           const Divider(height: 1),
           const SizedBox(height: 24),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return Container(
+                color: Colors.red,
+                child: AnimatedSize(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  alignment: Alignment.topLeft,
+                  child: OverflowView.wrap(
+                    // If collapsed, limit to 2 lines (maxRun: 2).
+                    // If expanded, allow unlimited lines (maxRun: null).
+                    maxRun: _isExpanded ? null : 3,
+                    visibleFitRun: 3,
+                    maxItemPerRun: null, // No limit per run
+                    spacing: 8, // Horizontal spacing
+                    runSpacing: 8, // Vertical spacing
 
-          // OverflowView Implementation
-          AnimatedSize(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            alignment: Alignment.topLeft,
-            child: OverflowView.wrap(
-              // If collapsed, limit to 2 lines (maxRun: 2).
-              // If expanded, allow unlimited lines (maxRun: null).
-              maxRun: _isExpanded ? null : 3,
-              maxItemPerRun: null, // No limit per run
-              spacing: 8, // Horizontal spacing
-              runSpacing: 8, // Vertical spacing
+                    // The widget to show when there is not enough space.
+                    // Effectively the "More" button in constrained state.
+                    overflowWidget: _buildOverflowButton(),
 
-              // The widget to show when there is not enough space.
-              // Effectively the "More" button in constrained state.
-              overflowWidget: _buildOverflowButton(),
+                    // The widget to show when the list is expanded but could be collapsed.
+                    // Effectively the "Less" button.
+                    unconstrainedOverflowWidget: _buildCollapseButton(),
 
-              children: [
-                ..._tags.map((tag) => _buildTagChip(tag)),
-
-                // If expanded, add a "Less" button at the end of the list
-                if (_isExpanded) _buildCollapseButton(),
-              ],
-            ),
+                    children: _tags.map((tag) => _buildTagChip(tag)).toList(),
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -210,7 +216,8 @@ class _ExpandableOverflowDemoState extends State<ExpandableOverflowDemo> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+          color: Colors
+              .yellow, //Theme.of(context).colorScheme.primary.withOpacity(0.1),
           borderRadius: BorderRadius.circular(100),
         ),
         child: Row(
@@ -247,7 +254,7 @@ class _ExpandableOverflowDemoState extends State<ExpandableOverflowDemo> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.grey.withOpacity(0.1),
+          color: Colors.yellow, // Colors.grey.withOpacity(0.1),
           borderRadius: BorderRadius.circular(100),
           border: Border.all(color: Colors.grey.withOpacity(0.2)),
         ),

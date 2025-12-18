@@ -1,6 +1,6 @@
 name: overflow_view
 description: A widget displaying children in a line with an overflow indicator at the end if there is not enough space.
-version: 1.1.0
+version: 2.0.0
 homepage: https://github.com/WilliamX1019/overflow_view
 
 environment:

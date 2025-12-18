@@ -26,6 +26,9 @@ class OverflowView extends MultiChildRenderObjectWidget {
     Axis direction = Axis.horizontal,
     required List<Widget> children,
     double spacing = 0,
+    int? maxRun,
+    Widget? unconstrainedOverflowWidget,
+    int? visibleFitRun,
   }) : this._all(
           key: key,
           overflowWidget: overflowWidget,
@@ -36,9 +39,11 @@ class OverflowView extends MultiChildRenderObjectWidget {
           runAlignment: WrapAlignment.start,
           runSpacing: 0,
           crossAxisAlignment: WrapCrossAlignment.start,
-          maxRun: 1,
+          maxRun: maxRun ?? 1,
           verticalDirection: VerticalDirection.down,
           layoutBehavior: OverflowViewLayoutBehavior.fixed,
+          unconstrainedOverflowWidget: unconstrainedOverflowWidget,
+          visibleFitRun: visibleFitRun,
         );
 
   /// Creates a flexible [OverflowView].
@@ -52,6 +57,9 @@ class OverflowView extends MultiChildRenderObjectWidget {
     Axis direction = Axis.horizontal,
     required List<Widget> children,
     double spacing = 0,
+    int? maxRun,
+    Widget? unconstrainedOverflowWidget,
+    int? visibleFitRun,
   }) : this._all(
           key: key,
           overflowWidget: overflowWidget,
@@ -62,9 +70,11 @@ class OverflowView extends MultiChildRenderObjectWidget {
           runAlignment: WrapAlignment.start,
           runSpacing: 0,
           crossAxisAlignment: WrapCrossAlignment.start,
-          maxRun: 1,
+          maxRun: maxRun ?? 1,
           verticalDirection: VerticalDirection.down,
           layoutBehavior: OverflowViewLayoutBehavior.flexible,
+          unconstrainedOverflowWidget: unconstrainedOverflowWidget,
+          visibleFitRun: visibleFitRun,
         );
 
   /// Creates a flexible [OverflowView].
@@ -86,6 +96,8 @@ class OverflowView extends MultiChildRenderObjectWidget {
     int? maxItemPerRun,
     TextDirection? textDirection,
     VerticalDirection verticalDirection = VerticalDirection.down,
+    Widget? unconstrainedOverflowWidget,
+    int? visibleFitRun,
   }) : this._all(
           key: key,
           overflowWidget: overflowWidget,
@@ -101,6 +113,8 @@ class OverflowView extends MultiChildRenderObjectWidget {
           textDirection: textDirection,
           verticalDirection: verticalDirection,
           layoutBehavior: OverflowViewLayoutBehavior.wrap,
+          unconstrainedOverflowWidget: unconstrainedOverflowWidget,
+          visibleFitRun: visibleFitRun,
         );
 
   OverflowView._all({
@@ -119,6 +133,8 @@ class OverflowView extends MultiChildRenderObjectWidget {
     this.verticalDirection = VerticalDirection.down,
     // this.overflowWidget, // duplicate
     required OverflowViewLayoutBehavior layoutBehavior,
+    this.unconstrainedOverflowWidget,
+    this.visibleFitRun,
   })  : assert(spacing > double.negativeInfinity && spacing < double.infinity),
         assert(maxItemPerRun == null || maxItemPerRun > 0),
         _layoutBehavior = layoutBehavior,
@@ -127,11 +143,21 @@ class OverflowView extends MultiChildRenderObjectWidget {
           children: [
             ...children,
             if (overflowWidget != null) overflowWidget,
+            if (unconstrainedOverflowWidget != null)
+              unconstrainedOverflowWidget,
           ],
         );
 
   /// The widget to prevent when the overflow is reached.
   final Widget? overflowWidget;
+
+  /// The widget to display when the view is expanded (maxRun is null)
+  /// but the content exceeds [visibleFitRun].
+  final Widget? unconstrainedOverflowWidget;
+
+  /// The number of runs that are visible without expanding.
+  /// If null, the unconstrained overflow widget logic is disabled.
+  final int? visibleFitRun;
 
   /// The direction to use as the main axis.
   ///
@@ -300,6 +326,8 @@ class OverflowView extends MultiChildRenderObjectWidget {
       verticalDirection: verticalDirection,
       layoutBehavior: _layoutBehavior,
       hasOverflow: overflowWidget != null,
+      hasUnconstrainedOverflow: unconstrainedOverflowWidget != null,
+      visibleFitRun: visibleFitRun,
     );
   }
 
@@ -320,7 +348,9 @@ class OverflowView extends MultiChildRenderObjectWidget {
       ..textDirection = textDirection ?? Directionality.maybeOf(context)
       ..verticalDirection = verticalDirection
       ..layoutBehavior = _layoutBehavior
-      ..hasOverflow = overflowWidget != null;
+      ..hasOverflow = overflowWidget != null
+      ..hasUnconstrainedOverflow = unconstrainedOverflowWidget != null
+      ..visibleFitRun = visibleFitRun;
   }
 
   @override
