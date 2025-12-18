@@ -1,222 +1,275 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:overflow_view/overflow_view.dart';
 
-import 'limited_time_option_item.dart';
-
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'OverflowView Example',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.blue,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6B4EFF),
+          brightness: Brightness.light,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF8F9FC),
       ),
-      home: MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const ExpandableOverflowDemo(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  MyHomePage({Key? key, required this.title}) : super(key: key);
-
-  final String title;
+class ExpandableOverflowDemo extends StatefulWidget {
+  const ExpandableOverflowDemo({super.key});
 
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  State<ExpandableOverflowDemo> createState() => _ExpandableOverflowDemoState();
 }
 
-class Avatar {
-  const Avatar(this.initials, this.color);
-  final String initials;
-  final Color color;
-}
+class _ExpandableOverflowDemoState extends State<ExpandableOverflowDemo> {
+  // Toggle state to control expand/collapse
+  bool _isExpanded = false;
 
-const List<Avatar> avatars = <Avatar>[
-  Avatar('ADddddddddddddddddddddddddddddddddddd', Colors.green),
-  Avatar('JGaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', Colors.pink),
-  Avatar('DAssss', Colors.blue),
-  Avatar('JAaaaa', Colors.black),
-  Avatar('CBdddd', Colors.amber),
-  Avatar('RRffff', Colors.deepPurple),
-  Avatar('JDgggg', Colors.pink),
-  Avatar('MBssss', Colors.amberAccent),
-  Avatar('AAaaaa', Colors.blueAccent),
-  Avatar('BAaaaa', Colors.tealAccent),
-  Avatar('CRrrrr', Colors.yellow),
-];
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-  double ratio = 1;
-  int maxRun = 2;
-  bool isOpen = false;
-  List<Widget> allItems = [];
-  void _incrementCounter() {
-    setState(() {
-      // _counter = avatars.length;
-    });
-  }
-
-  @override
-  void initState() {
-    // TODO: implement initState
-    super.initState();
-    _counter = avatars.length;
-
-    allItems = List.from([
-      "With Invisi Drawstring",
-      "With Invisi Drawstring4",
-      'a',
-      'b',
-      'c',
-      'd',
-      'e',
-      'f',
-      'g',
-      'h',
-      'i',
-      'j',
-      'k',
-      'l',
-      'm',
-      'n',
-      'o',
-      'p',
-    ]).map((e) {
-      final isSelected = false;
-      final isRecommend = false;
-      final isInStock = true;
-
-      Color borderColor = const Color(0xFFDDAF88);
-      Color backgroundColor = Colors.white;
-      borderColor = const Color(0xFFDDAF88);
-      backgroundColor = Colors.white;
-
-      return LimitedTimeOptionItem(
-        isSelected: isSelected,
-        isInStock: isInStock,
-        text: e,
-        badgeImageUrl: '',
-        labelText: "Fit 18-24 In",
-        onTap: () {
-          print('当前点击了-- $e');
-        },
-      );
-    }).toList();
-  }
+  // Generate a list of sample data (e.g., user skills or tags)
+  final List<String> _tags = [
+    'Flutter AAAAAAAAAA',
+    'Dart BBBBBBBBBBBBBBBB',
+    'Mobile Development',
+    'iOS',
+    'Android',
+    'UI/UX Design',
+    'Web Development',
+    'React',
+    'TypeScript',
+    'JavaScript',
+    'Node.js',
+    'Python',
+    'Machine Learning',
+    'Firebase',
+    'Cloud Computing',
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.title),
+        title: const Text(
+          'OverflowView Demo',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.transparent,
       ),
-      body: SafeArea(
+      body: Center(
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: const EdgeInsets.all(24.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                width: double.infinity,
-                color: Colors.red,
-                padding: EdgeInsets.symmetric(
-                  vertical: 4,
+              _buildDemoCard(),
+              const SizedBox(height: 40),
+              const Text(
+                'Resize the usage description or add more items\nto see the overflow in action.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 14,
                 ),
-                child: OverflowView.wrap(
-                  spacing: 8,
-                  runSpacing: 12,
-                  direction: Axis.horizontal,
-                  maxRun: maxRun,
-                  children: allItems,
-                  builder: (context, remainingItemCount) {
-                    print('remainingItemCount: $remainingItemCount');
-                    return GestureDetector(
-                      child: Chip(
-                        label: Text("+$remainingItemCount"),
-                        backgroundColor: Colors.black,
-                      ),
-                      onTap: () {
-                        //点击展开更多
-                        setState(() {
-                          maxRun = 100;
-                          isOpen = true;
-                        });
-                      },
-                    );
-                  },
-                ),
-              )
-              // Text(
-              //   "People's names",
-              //   style: TextStyle(fontSize: 16),
-              // ),
-              // SizedBox(height: 16),
-              // Container(
-              //   width: double.infinity,
-              //   padding: EdgeInsets.all(8),
-              //   decoration: BoxDecoration(
-              //     color: Colors.blue.shade50,
-              //     border: Border.all(
-              //       color: Colors.blue.shade100,
-              //       width: 2,
-              //     ),
-              //     borderRadius: BorderRadius.circular(18),
-              //   ),
-              //   child: OverflowView.wrap(
-              //     runSpacing: 4,
-              //     spacing: 4,
-              //     maxRun: maxRun,
-              //     builder: (context, remainingItemCount) =>
-              //         GestureDetector(
-              //       child: Chip(
-              //         label: Text("+$remainingItemCount"),
-              //         backgroundColor: Colors.red,
-              //       ),
-              //       onTap: () {
-              //         setState(() {
-              //           maxRun = 100;
-              //           isOpen = true;
-              //         });
-              //       },
-              //     ),
-              //     children: [
-              //       for (int i = 0; i < _counter; i++)
-              //         GestureDetector(
-              //           onTap: () {
-              //             if (isOpen && i == _counter - 1) {
-              //               setState(() {
-              //                 maxRun = 2;
-              //                 isOpen = false;
-              //               });
-              //             }
-              //           },
-              //           child: Chip(
-              //           label: Text(
-              //             avatars[i].initials,
-              //             style: TextStyle(
-              //               color: Colors.white,
-              //             ),
-              //           ),
-              //           backgroundColor: avatars[i].color,
-              //         ),),
-              //     ],
-              //   ),
-              // ),
+              ),
             ],
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: Icon(Icons.add),
+    );
+  }
+
+  Widget _buildDemoCard() {
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(maxWidth: 400),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  Icons.code,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              const SizedBox(width: 16),
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Developer Skills',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    'Technical proficiency',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const Divider(height: 1),
+          const SizedBox(height: 24),
+
+          // OverflowView Implementation
+          AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            alignment: Alignment.topLeft,
+            child: OverflowView.wrap(
+              // If collapsed, limit to 2 lines (maxRun: 2).
+              // If expanded, allow unlimited lines (maxRun: null).
+              maxRun: _isExpanded ? null : 3,
+              maxItemPerRun: null, // No limit per run
+              spacing: 8, // Horizontal spacing
+              runSpacing: 8, // Vertical spacing
+
+              // The widget to show when there is not enough space.
+              // Effectively the "More" button in constrained state.
+              overflowWidget: _buildOverflowButton(),
+
+              children: [
+                ..._tags.map((tag) => _buildTagChip(tag)),
+
+                // If expanded, add a "Less" button at the end of the list
+                if (_isExpanded) _buildCollapseButton(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTagChip(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: Colors.transparent),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Color(0xFF4B5563),
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
+  // Widget shown when overflow occurs (Collapsed State)
+  Widget _buildOverflowButton() {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _isExpanded = true;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'View all',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 16,
+              color: Theme.of(context).colorScheme.primary,
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Widget appended to the end of the list (Expanded State)
+  Widget _buildCollapseButton() {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _isExpanded = false;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.grey.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(color: Colors.grey.withOpacity(0.2)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Show less',
+              style: TextStyle(
+                color: Colors.black87,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(
+              Icons.keyboard_arrow_up_rounded,
+              size: 16,
+              color: Colors.black87,
+            )
+          ],
+        ),
       ),
     );
   }

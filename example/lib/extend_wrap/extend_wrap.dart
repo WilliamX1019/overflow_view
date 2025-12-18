@@ -1,142 +1,55 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:overflow_view/src/rendering/overflow_view.dart';
+import 'package:flutter/rendering.dart';
 
-/// Signature for a builder that creates an overflow indicator when there is not
-/// enough space to display all the children of an [OverflowView].
-typedef OverflowIndicatorBuilder = Widget Function(
-  BuildContext context,
-  int remainingItemCount,
-);
+import 'extend_render_wrap.dart';
 
-/// A widget that displays its children in a one-dimensional array until there
-/// is no more room. If all the children don't fit in the available space, it
-/// displays an indicator at the end.
-///
-/// All chidren will have the same size as the first child.
-class OverflowView extends MultiChildRenderObjectWidget {
-  /// Creates an [OverflowView].
+/// Created by elileo on 2021/12/3.
+class ExtendedWrap extends MultiChildRenderObjectWidget {
+  /// Creates a wrap layout.
   ///
-  /// All children will have the same size has the first child.
+  /// By default, the wrap layout is horizontal and both the children and the
+  /// runs are aligned to the start.
   ///
-  /// The [spacing] argument must also be finite.
-  OverflowView({
+  /// The [textDirection] argument defaults to the ambient [Directionality], if
+  /// any. If there is no ambient directionality, and a text direction is going
+  /// to be necessary to decide which direction to lay the children in or to
+  /// disambiguate `start` or `end` values for the main or cross axis
+  /// directions, the [textDirection] must not be null.
+
+  final int maxLines;
+
+  final int minLines;
+
+  final Widget? overflowWidget;
+
+  ExtendedWrap({
     Key? key,
-    required Widget? overflowWidget,
-    Axis direction = Axis.horizontal,
-    required List<Widget> children,
-    double spacing = 0,
-  }) : this._all(
-          key: key,
-          overflowWidget: overflowWidget,
-          direction: direction,
-          children: children,
-          alignment: WrapAlignment.start,
-          spacing: spacing,
-          runAlignment: WrapAlignment.start,
-          runSpacing: 0,
-          crossAxisAlignment: WrapCrossAlignment.start,
-          maxRun: 1,
-          verticalDirection: VerticalDirection.down,
-          layoutBehavior: OverflowViewLayoutBehavior.fixed,
-        );
-
-  /// Creates a flexible [OverflowView].
-  ///
-  /// All children can have their own size.
-  ///
-  /// The [spacing] argument must also be finite.
-  OverflowView.flexible({
-    Key? key,
-    required Widget? overflowWidget,
-    Axis direction = Axis.horizontal,
-    required List<Widget> children,
-    double spacing = 0,
-  }) : this._all(
-          key: key,
-          overflowWidget: overflowWidget,
-          direction: direction,
-          children: children,
-          alignment: WrapAlignment.start,
-          spacing: spacing,
-          runAlignment: WrapAlignment.start,
-          runSpacing: 0,
-          crossAxisAlignment: WrapCrossAlignment.start,
-          maxRun: 1,
-          verticalDirection: VerticalDirection.down,
-          layoutBehavior: OverflowViewLayoutBehavior.flexible,
-        );
-
-  /// Creates a flexible [OverflowView].
-  ///
-  /// All children can have their own size.
-  ///
-  /// The [spacing] argument must also be finite.
-  OverflowView.wrap({
-    Key? key,
-    required Widget? overflowWidget,
-    Axis direction = Axis.horizontal,
-    required List<Widget> children,
-    WrapAlignment alignment = WrapAlignment.start,
-    double spacing = 0,
-    WrapAlignment runAlignment = WrapAlignment.start,
-    double runSpacing = 0.0,
-    WrapCrossAlignment crossAxisAlignment = WrapCrossAlignment.start,
-    int? maxRun,
-    int? maxItemPerRun,
-    TextDirection? textDirection,
-    VerticalDirection verticalDirection = VerticalDirection.down,
-  }) : this._all(
-          key: key,
-          overflowWidget: overflowWidget,
-          direction: direction,
-          children: children,
-          alignment: alignment,
-          spacing: spacing,
-          runAlignment: runAlignment,
-          runSpacing: runSpacing,
-          crossAxisAlignment: crossAxisAlignment,
-          maxRun: maxRun,
-          maxItemPerRun: maxItemPerRun,
-          textDirection: textDirection,
-          verticalDirection: verticalDirection,
-          layoutBehavior: OverflowViewLayoutBehavior.wrap,
-        );
-
-  OverflowView._all({
-    Key? key,
-    this.overflowWidget,
     this.direction = Axis.horizontal,
-    required List<Widget> children,
     this.alignment = WrapAlignment.start,
-    this.spacing = 0,
+    this.spacing = 0.0,
     this.runAlignment = WrapAlignment.start,
     this.runSpacing = 0.0,
     this.crossAxisAlignment = WrapCrossAlignment.start,
-    this.maxRun,
-    this.maxItemPerRun,
     this.textDirection,
     this.verticalDirection = VerticalDirection.down,
-    // this.overflowWidget, // duplicate
-    required OverflowViewLayoutBehavior layoutBehavior,
-  })  : assert(spacing > double.negativeInfinity && spacing < double.infinity),
-        assert(maxItemPerRun == null || maxItemPerRun > 0),
-        _layoutBehavior = layoutBehavior,
-        super(
-          key: key,
-          children: [
-            ...children,
-            if (overflowWidget != null) overflowWidget,
-          ],
-        );
-
-  /// The widget to prevent when the overflow is reached.
-  final Widget? overflowWidget;
+    this.clipBehavior = Clip.none,
+    this.maxLines = 1,
+    this.minLines = 1,
+    this.overflowWidget,
+    List<Widget> children = const <Widget>[],
+  })  : assert(maxLines >= 1),
+        assert(minLines >= 1 && minLines <= maxLines),
+        super(key: key, children: [
+          ...children,
+          if (overflowWidget != null) overflowWidget
+        ]);
 
   /// The direction to use as the main axis.
   ///
   /// For example, if [direction] is [Axis.horizontal], the default, the
-  /// children are placed adjacent to one another as in a [Row].
+  /// children are placed adjacent to one another in a horizontal run until the
+  /// available horizontal space is consumed, at which point a subsequent
+  /// children are placed in a new run vertically adjacent to the previous run.
   final Axis direction;
 
   /// How the children within a run should be placed in the main axis.
@@ -154,13 +67,6 @@ class OverflowView extends MultiChildRenderObjectWidget {
   ///    are placed relative to each other in the cross axis.
   final WrapAlignment alignment;
 
-  /// * If [_layoutBehavior] is [OverflowViewLayoutBehavior.fixed],
-  /// [OverflowViewLayoutBehavior.flexible]:
-  ///
-  /// It's the amount of space between successive children.
-  ///
-  /// * If [_layoutBehavior] is [OverflowViewLayoutBehavior.wrap]:
-  ///
   /// How much space to place between children in a run in the main axis.
   ///
   /// For example, if [spacing] is 10.0, the children will be spaced at least
@@ -177,7 +83,7 @@ class OverflowView extends MultiChildRenderObjectWidget {
   /// How the runs themselves should be placed in the cross axis.
   ///
   /// For example, if [runAlignment] is [WrapAlignment.center], the runs are
-  /// grouped together in the center of the overall [OverflowView] in the cross axis.
+  /// grouped together in the center of the overall [Wrap] in the cross axis.
   ///
   /// Defaults to [WrapAlignment.start].
   ///
@@ -194,7 +100,7 @@ class OverflowView extends MultiChildRenderObjectWidget {
   /// For example, if [runSpacing] is 10.0, the runs will be spaced at least
   /// 10.0 logical pixels apart in the cross axis.
   ///
-  /// If there is additional free space in the overall [OverflowView] (e.g., because
+  /// If there is additional free space in the overall [Wrap] (e.g., because
   /// the wrap has a minimum size that is not filled), the additional free space
   /// will be allocated according to the [runAlignment].
   ///
@@ -217,12 +123,6 @@ class OverflowView extends MultiChildRenderObjectWidget {
   ///  * [runAlignment], which controls how the runs are placed relative to each
   ///    other in the cross axis.
   final WrapCrossAlignment crossAxisAlignment;
-
-  /// A maximum number of rows (the runs).
-  final int? maxRun;
-
-  /// A maximum number of columns (the item in each run).
-  final int? maxItemPerRun;
 
   /// Determines the order to lay children out horizontally and how to interpret
   /// `start` and `end` in the horizontal direction.
@@ -276,38 +176,31 @@ class OverflowView extends MultiChildRenderObjectWidget {
   /// [verticalDirection] must not be null.
   final VerticalDirection verticalDirection;
 
-  /// Defines whether a [OverflowView] should constrain all children and
-  /// displays them.
-  final OverflowViewLayoutBehavior _layoutBehavior;
+  /// {@macro flutter.material.Material.clipBehavior}
+  ///
+  /// Defaults to [Clip.none].
+  final Clip clipBehavior;
 
   @override
-  _OverflowViewElement createElement() {
-    return _OverflowViewElement(this);
-  }
-
-  @override
-  RenderOverflowView createRenderObject(BuildContext context) {
-    return RenderOverflowView(
-      direction: direction,
-      alignment: alignment,
-      spacing: spacing,
-      runAlignment: runAlignment,
-      runSpacing: runSpacing,
-      crossAxisAlignment: crossAxisAlignment,
-      maxRun: maxRun,
-      maxItemPerRun: maxItemPerRun,
-      textDirection: textDirection ?? Directionality.maybeOf(context),
-      verticalDirection: verticalDirection,
-      layoutBehavior: _layoutBehavior,
-      hasOverflow: overflowWidget != null,
-    );
+  ExtendedRenderWrap createRenderObject(BuildContext context) {
+    return ExtendedRenderWrap(
+        direction: direction,
+        alignment: alignment,
+        spacing: spacing,
+        runAlignment: runAlignment,
+        runSpacing: runSpacing,
+        crossAxisAlignment: crossAxisAlignment,
+        textDirection: textDirection ?? Directionality.maybeOf(context),
+        verticalDirection: verticalDirection,
+        clipBehavior: clipBehavior,
+        maxLines: maxLines,
+        minLines: minLines,
+        hasOverflow: (overflowWidget != null));
   }
 
   @override
   void updateRenderObject(
-    BuildContext context,
-    RenderOverflowView renderObject,
-  ) {
+      BuildContext context, ExtendedRenderWrap renderObject) {
     renderObject
       ..direction = direction
       ..alignment = alignment
@@ -315,12 +208,12 @@ class OverflowView extends MultiChildRenderObjectWidget {
       ..runAlignment = runAlignment
       ..runSpacing = runSpacing
       ..crossAxisAlignment = crossAxisAlignment
-      ..maxRun = maxRun
-      ..maxItemPerRun = maxItemPerRun
       ..textDirection = textDirection ?? Directionality.maybeOf(context)
       ..verticalDirection = verticalDirection
-      ..layoutBehavior = _layoutBehavior
-      ..hasOverflow = overflowWidget != null;
+      ..maxLines = maxLines
+      ..minLines = minLines
+      ..hasOverflow = (overflowWidget != null)
+      ..clipBehavior = clipBehavior;
   }
 
   @override
@@ -331,42 +224,13 @@ class OverflowView extends MultiChildRenderObjectWidget {
     properties.add(DoubleProperty('spacing', spacing));
     properties.add(EnumProperty<WrapAlignment>('runAlignment', runAlignment));
     properties.add(DoubleProperty('runSpacing', runSpacing));
-    properties.add(EnumProperty<WrapCrossAlignment>(
-      'crossAxisAlignment',
-      crossAxisAlignment,
-    ));
-    properties.add(IntProperty('maxRun', maxRun));
-    properties.add(IntProperty(
-      'maxItemPerRun',
-      maxItemPerRun,
-      defaultValue: null,
-    ));
-    properties.add(EnumProperty<TextDirection>(
-      'textDirection',
-      textDirection,
-      defaultValue: null,
-    ));
+    properties.add(DoubleProperty('crossAxisAlignment', runSpacing));
+    properties.add(EnumProperty<TextDirection>('textDirection', textDirection,
+        defaultValue: null));
     properties.add(EnumProperty<VerticalDirection>(
-      'verticalDirection',
-      verticalDirection,
-      defaultValue: VerticalDirection.down,
-    ));
-    properties.add(EnumProperty<OverflowViewLayoutBehavior>(
-      'layoutBehavior',
-      _layoutBehavior,
-    ));
-  }
-}
-
-class _OverflowViewElement extends MultiChildRenderObjectElement {
-  _OverflowViewElement(OverflowView widget) : super(widget);
-
-  @override
-  void debugVisitOnstageChildren(ElementVisitor visitor) {
-    children.forEach((element) {
-      if (element.renderObject?.isOnstage == true) {
-        visitor(element);
-      }
-    });
+        'verticalDirection', verticalDirection,
+        defaultValue: VerticalDirection.down));
+    properties.add(IntProperty('maxLines', maxLines));
+    properties.add(IntProperty('minLines', minLines));
   }
 }
